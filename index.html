@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Умный парсер эфира — финальная версия</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #ff0000; margin-bottom: 5px; }
+        .sub { color: #666; margin-bottom: 20px; }
+        .upload-area {
+            background: white;
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .upload-area:hover { border-color: #ff0000; background: #fff5f5; }
+        .controls {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .control-group label {
+            font-weight: bold;
+            font-size: 12px;
+            color: #666;
+        }
+        input, button {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+        button {
+            background: #ff0000;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background: #cc0000; }
+        .result {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .block {
+            border-left: 4px solid #ff0000;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .block-host { border-left-color: #2196f3; background: #f0f8ff; }
+        .block-expert { border-left-color: #ff9800; background: #fff8f0; }
+        .block h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .badge-host { background: #2196f3; color: white; }
+        .badge-bykov { background: #ff9800; color: white; }
+        .badge-favorov { background: #4caf50; color: white; }
+        .badge-borodkin { background: #9c27b0; color: white; }
+        .badge-kashin { background: #e91e63; color: white; }
+        .block .text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .stats {
+            background: #f0f0f0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        .stats span { font-weight: bold; color: #ff0000; }
+        .info { background: #e3f2fd; padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🎙️ Умный парсер эфира — финальная версия</h1>
+    <div class="sub">Автоматическое выделение гостей по фразам "с нами на связи" + объединение в смысловые блоки</div>
+
+    <div class="upload-area" id="uploadArea">
+        <h3>📄 Загрузите расшифровку (.txt)</h3>
+        <p>Формат: любые временные метки (2:27:42, 14:07, 2 минуты 15 секунд)</p>
+        <div id="fileStatus"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".txt" style="display: none;">
+
+    <div class="controls" id="controls" style="display: none;">
+        <div class="control-group">
+            <label>⏱️ НАЧАЛО</label>
+            <input type="text" id="startTime" placeholder="0:00:00" value="0:00:00">
+        </div>
+        <div class="control-group">
+            <label>⏱️ КОНЕЦ</label>
+            <input type="text" id="endTime" placeholder="3:08:00" value="3:08:00">
+        </div>
+        <div class="control-group">
+            <button id="parseBtn">🔍 Разобрать на блоки</button>
+        </div>
+    </div>
+
+    <div id="result"></div>
+
+    <script>
+        let fullSubtitles = [];
+        
+        function parseTimeToSeconds(timeStr) {
+            timeStr = timeStr.trim();
+            let match = timeStr.match(/(\d+)\s*минут\w*\s+(\d+)\s*секунд/);
+            if (match) return parseInt(match[1]) * 60 + parseInt(match[2]);
+            match = timeStr.match(/^(\d+):(\d+):(\d+)$/);
+            if (match) return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]);
+            match = timeStr.match(/^(\d+):(\d+)$/);
+            if (match) return parseInt(match[1]) * 60 + parseInt(match[2]);
+            return null;
+        }
+        
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        }
+        
+        function isTimestamp(line) {
+            line = line.trim();
+            return line.match(/^\d+\s*минут/) || line.match(/^\d+:\d+/) || line.match(/^\d+:\d+:\d+/);
+        }
+        
+        // Очистка текста от временных меток
+        function cleanText(text) {
+            const lines = text.split('\n');
+            const cleaned = lines.filter(line => {
+                const trimmed = line.trim();
+                return !isTimestamp(trimmed);
+            });
+            return cleaned.join(' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        // Парсинг всей расшифровки
+        function parseTranscript(text) {
+            const lines = text.split('\n');
+            const subtitles = [];
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                if (!line) continue;
+                if (isTimestamp(line)) {
+                    const timeSec = parseTimeToSeconds(line);
+                    if (timeSec !== null) {
+                        let j = i + 1;
+                        let content = '';
+                        while (j < lines.length) {
+                            let nextLine = lines[j].trim();
+                            if (!nextLine) { j++; continue; }
+                            if (isTimestamp(nextLine)) break;
+                            content += (content ? ' ' : '') + nextLine;
+                            j++;
+                        }
+                        if (content) {
+                            subtitles.push({
+                                time: timeSec,
+                                timeStr: formatTime(timeSec),
+                                text: cleanText(content)
+                            });
+                        }
+                        i = j - 1;
+                    }
+                }
+            }
+            return subtitles;
+        }
+        
+        // Определение типа блока по времени и тексту
+        function getBlockType(text, startTime, isGuestStart) {
+            const lowerText = text.toLowerCase();
+            
+            // Если это начало гостя — определяем по фразам
+            if (isGuestStart) {
+                if (lowerText.includes('быков') && lowerText.includes('с нами на связи')) return { type: 'bykov', label: 'Дмитрий Быков', badge: 'badge-bykov' };
+                if (lowerText.includes('фаворов') || (lowerText.includes('эпидемиолог') && lowerText.includes('с нами на связи'))) return { type: 'favorov', label: 'Михаил Фаворов', badge: 'badge-favorov' };
+                if (lowerText.includes('бородкин') || (lowerText.includes('иран') && lowerText.includes('с нами на связи'))) return { type: 'borodkin', label: 'Михаил Бородкин', badge: 'badge-borodkin' };
+                if (lowerText.includes('кашин')) return { type: 'kashin', label: 'Олег Кашин', badge: 'badge-kashin' };
+            }
+            
+            // По времени (запасной вариант)
+            if (startTime >= 2*3600 + 27*60) return { type: 'kashin', label: 'Олег Кашин', badge: 'badge-kashin' };
+            if (startTime >= 2*3600 + 4*60 && startTime < 2*3600 + 27*60) return { type: 'borodkin', label: 'Михаил Бородкин', badge: 'badge-borodkin' };
+            if (startTime >= 1*3600 + 13*60 && startTime < 2*3600 + 4*60) return { type: 'favorov', label: 'Михаил Фаворов', badge: 'badge-favorov' };
+            if (startTime >= 14*60 && startTime < 1*3600) return { type: 'bykov', label: 'Дмитрий Быков', badge: 'badge-bykov' };
+            
+            // Ведущие
+            if (lowerText.includes('маша') || lowerText.includes('айдар') || 
+                (text.includes('?') && text.length < 500) ||
+                text.toLowerCase().includes('доброе утро')) {
+                return { type: 'host', label: 'Ведущие (Маша, Айдар)', badge: 'badge-host' };
+            }
+            
+            return { type: 'host', label: 'Ведущие', badge: 'badge-host' };
+        }
+        
+        // Объединение в смысловые блоки
+        function mergeIntoBlocks(subtitles, startSec, endSec) {
+            const filtered = subtitles.filter(s => s.time >= startSec && s.time <= endSec);
+            if (filtered.length === 0) return [];
+            
+            const blocks = [];
+            let currentBlock = { start: filtered[0].timeStr, end: null, texts: [], lastTime: filtered[0].time, currentType: null };
+            
+            for (let i = 0; i < filtered.length; i++) {
+                const item = filtered[i];
+                const text = item.text;
+                if (!text) continue;
+                
+                // Определяем, является ли это начало гостя
+                const isGuestStart = text.includes('с нами на связи') || 
+                                     text.includes('подключается') ||
+                                     (text.includes('Михаил Фаворов') && i > 0 && filtered[i-1].time < item.time - 10);
+                
+                const blockType = getBlockType(text, item.time, isGuestStart);
+                
+                // Если тип блока изменился и текущий блок не пустой — закрываем
+                if (currentBlock.currentType && currentBlock.currentType !== blockType.type && currentBlock.texts.length > 0) {
+                    currentBlock.end = filtered[i-1].timeStr;
+                    currentBlock.fullText = currentBlock.texts.join(' ');
+                    blocks.push(currentBlock);
+                    currentBlock = { start: item.timeStr, end: null, texts: [text], lastTime: item.time, currentType: blockType.type };
+                } else {
+                    currentBlock.texts.push(text);
+                    currentBlock.lastTime = item.time;
+                    currentBlock.currentType = blockType.type;
+                    if (!currentBlock.start) currentBlock.start = item.timeStr;
+                }
+            }
+            
+            if (currentBlock.texts.length > 0) {
+                currentBlock.end = filtered[filtered.length-1].timeStr;
+                currentBlock.fullText = currentBlock.texts.join(' ');
+                blocks.push(currentBlock);
+            }
+            
+            return blocks;
+        }
+        
+        // Загрузка файла
+        document.getElementById('uploadArea').onclick = () => document.getElementById('fileInput').click();
+        document.getElementById('fileInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file || !file.name.endsWith('.txt')) {
+                alert('Загрузите файл .txt');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                fullSubtitles = parseTranscript(ev.target.result);
+                document.getElementById('fileStatus').innerHTML = `✅ ${file.name} — ${fullSubtitles.length} фраз`;
+                document.getElementById('controls').style.display = 'flex';
+                if (fullSubtitles.length > 0) {
+                    document.getElementById('startTime').value = fullSubtitles[0].timeStr;
+                    document.getElementById('endTime').value = fullSubtitles[fullSubtitles.length-1].timeStr;
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        };
+        
+        // Парсинг
+        document.getElementById('parseBtn').onclick = () => {
+            if (fullSubtitles.length === 0) return;
+            
+            const startStr = document.getElementById('startTime').value;
+            const endStr = document.getElementById('endTime').value;
+            const startSec = parseTimeToSeconds(startStr);
+            const endSec = parseTimeToSeconds(endStr);
+            
+            if (startSec === null || endSec === null) {
+                alert('Введите корректное время');
+                return;
+            }
+            
+            const blocks = mergeIntoBlocks(fullSubtitles, startSec, endSec);
+            let totalChars = 0;
+            let totalWords = 0;
+            
+            const enrichedBlocks = blocks.map(block => {
+                const blockType = getBlockType(block.fullText, parseTimeToSeconds(block.start), false);
+                const chars = block.fullText.length;
+                const words = block.fullText.split(/\s+/).length;
+                totalChars += chars;
+                totalWords += words;
+                return { ...block, ...blockType, chars, words };
+            });
+            
+            let html = `<div class="result">
+                <div class="stats">
+                    📊 <span>${enrichedBlocks.length}</span> смысловых блоков<br>
+                    📝 <span>${totalChars.toLocaleString()}</span> символов, <span>${totalWords.toLocaleString()}</span> слов<br>
+                    ⏱️ интервал: <span>${startStr}</span> — <span>${endStr}</span>
+                </div>`;
+            
+            enrichedBlocks.forEach((block, idx) => {
+                const preview = block.fullText.substring(0, 500) + (block.fullText.length > 500 ? '...' : '');
+                const blockClass = block.type === 'host' ? 'block-host' : 'block-expert';
+                html += `
+                    <div class="block ${blockClass}">
+                        <h3>
+                            📌 Блок ${idx+1} · ${block.start} — ${block.end}
+                            <span class="badge ${block.badge}">${block.label}</span>
+                            <span style="font-size: 11px; color: #888;">📏 ${block.chars} символов</span>
+                        </h3>
+                        <div class="text">${escapeHtml(preview)}</div>
+                    </div>
+                `;
+            });
+            
+            if (enrichedBlocks.length === 0) {
+                html += `<div class="error">❌ В выбранном интервале нет фраз</div>`;
+            }
+            
+            html += `<div class="info">
+                💡 <strong>Как это работает:</strong><br>
+                • <strong style="color:#2196f3;">Ведущие</strong> — приветствия, вопросы, связки<br>
+                • <strong style="color:#ff9800;">Дмитрий Быков</strong> — определяется по фразе "с нами на связи"<br>
+                • <strong style="color:#4caf50;">Михаил Фаворов</strong> — определяется по фразе "с нами на связи"<br>
+                • <strong style="color:#9c27b0;">Михаил Бородкин</strong> — определяется по фразе "с нами на связи"<br>
+                • <strong style="color:#e91e63;">Олег Кашин</strong> — определяется по фразе "с нами на связи"<br>
+                • Все блоки одного гостя автоматически объединяются
+            </div></div>`;
+            
+            document.getElementById('result').innerHTML = html;
+        };
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Drag & Drop
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.style.borderColor = '#ff0000'; };
+        uploadArea.ondragleave = () => { uploadArea.style.borderColor = '#ccc'; };
+        uploadArea.ondrop = (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.txt')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    fullSubtitles = parseTranscript(ev.target.result);
+                    document.getElementById('fileStatus').innerHTML = `✅ ${file.name} — ${fullSubtitles.length} фраз`;
+                    document.getElementById('controls').style.display = 'flex';
+                    if (fullSubtitles.length > 0) {
+                        document.getElementById('startTime').value = fullSubtitles[0].timeStr;
+                        document.getElementById('endTime').value = fullSubtitles[fullSubtitles.length-1].timeStr;
+                    }
+                };
+                reader.readAsText(file, 'UTF-8');
+            }
+        };
+    </script>
+</body>
+</html>
