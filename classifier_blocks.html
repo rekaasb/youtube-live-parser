@@ -28,7 +28,8 @@
         .progress-bar { width: 100%; height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden; margin: 10px 0; }
         .progress-fill { height: 100%; background: #ff0000; width: 0%; }
         .info { background: #e3f2fd; padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
-        textarea { width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; }
+        .export-btn { background: #4caf50; margin-top: 20px; }
+        .export-btn:hover { background: #3d8b40; }
     </style>
 </head>
 <body>
@@ -38,7 +39,7 @@
     <div class="api-section">
         <label>🔑 API ключ DeepSeek (получить на platform.deepseek.com)</label>
         <input type="password" id="apiKey" class="api-key-input" placeholder="sk-...">
-        <div class="info">💡 Ключ нужен для анализа. Бесплатный приветственный кредит $5. После расходования — пополнение.</div>
+        <div class="info">💡 Ключ нужен для анализа. Бесплатный приветственный кредит $5.</div>
     </div>
     
     <div class="upload-section">
@@ -55,9 +56,6 @@
 </div>
 
 <script>
-// ============================================================
-// ПАРСИНГ ВРЕМЕННЫХ МЕТОК (как в smart_parser)
-// ============================================================
 function parseTimeToSeconds(timeStr) {
     timeStr = timeStr.trim();
     let match = timeStr.match(/(\d+)\s*минут\w*\s+(\d+)\s*секунд/);
@@ -113,33 +111,25 @@ function parseTranscript(text) {
     return subtitles;
 }
 
-// Определение гостя (универсально по фразе "с нами на связи")
 function detectGuest(text, prevGuest) {
     const lower = text.toLowerCase();
-    // Ищем "с нами на связи" + имя
     const match = lower.match(/с нами на связи\s+([а-яё\s]+?)(?:,|\.|$)/i);
     if (match) {
         let name = match[1].trim();
-        // Очищаем от лишних слов
         name = name.replace(/^(писатель|журналист|эпидемиолог|иронист|доктор|главный редактор)\s*/i, '');
         name = name.split(' ').slice(0, 2).join(' ');
-        if (name && name.length > 2) {
-            return { name: name, detected: true };
-        }
+        if (name && name.length > 2) return { name: name, detected: true };
     }
     return { name: prevGuest || 'Ведущие', detected: false };
 }
 
-// Объединение фраз в блоки по гостям
 function mergeIntoBlocks(subtitles) {
     const blocks = [];
     let currentBlock = { guest: null, guestName: 'Ведущие', start: null, end: null, texts: [] };
-    
     for (let i = 0; i < subtitles.length; i++) {
         const item = subtitles[i];
         const guestInfo = detectGuest(item.text, currentBlock.guestName);
         const guestName = guestInfo.name;
-        
         if (!currentBlock.guest) {
             currentBlock = { guest: guestName, guestName: guestName, start: item.timeStr, end: item.timeStr, texts: [item.text] };
         } else if (currentBlock.guestName === guestName && !guestInfo.detected) {
@@ -150,60 +140,32 @@ function mergeIntoBlocks(subtitles) {
             currentBlock = { guest: guestName, guestName: guestName, start: item.timeStr, end: item.timeStr, texts: [item.text] };
         }
     }
-    
-    if (currentBlock.texts.length > 0) {
-        blocks.push({ ...currentBlock, fullText: currentBlock.texts.join(' ') });
-    }
-    
+    if (currentBlock.texts.length > 0) blocks.push({ ...currentBlock, fullText: currentBlock.texts.join(' ') });
     return blocks;
 }
 
-// Классификация через DeepSeek
 async function classifyWithDeepSeek(text, apiKey) {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: 'deepseek-chat',
-            messages: [{
-                role: 'system',
-                content: 'Ты — анализатор речи. Классифицируй высказывание строго в один из трех типов: ФАКТ, ОЦЕНКА, ШУМ. Отвечай только одним словом.'
-            }, {
-                role: 'user',
-                content: `Классифицируй: "${text.substring(0, 4000)}"`
-            }]
+            messages: [{ role: 'system', content: 'Ты — анализатор речи. Классифицируй высказывание строго в один из трех типов: ФАКТ, ОЦЕНКА, ШУМ. Отвечай только одним словом.' }, { role: 'user', content: `Классифицируй: "${text.substring(0, 4000)}"` }]
         })
     });
-    
-    if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-    }
-    
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
     const data = await response.json();
     let result = data.choices[0].message.content.trim().toUpperCase();
-    
-    if (result === 'ФАКТ' || result === 'ОЦЕНКА' || result === 'ШУМ') {
-        return result;
-    }
+    if (result === 'ФАКТ' || result === 'ОЦЕНКА' || result === 'ШУМ') return result;
     return 'ОЦЕНКА';
 }
 
-// ============================================================
-// ОСНОВНАЯ ЛОГИКА
-// ============================================================
 let parsedBlocks = [];
 
 document.getElementById('uploadArea').onclick = () => document.getElementById('fileInput').click();
-
 document.getElementById('fileInput').onchange = (e) => {
     const file = e.target.files[0];
-    if (!file || !file.name.endsWith('.txt')) {
-        alert('Загрузите файл .txt');
-        return;
-    }
+    if (!file || !file.name.endsWith('.txt')) { alert('Загрузите файл .txt'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
         const subtitles = parseTranscript(ev.target.result);
@@ -215,48 +177,32 @@ document.getElementById('fileInput').onchange = (e) => {
 };
 
 document.getElementById('analyzeBtn').onclick = async () => {
-    if (parsedBlocks.length === 0) {
-        alert('Сначала загрузите расшифровку');
-        return;
-    }
-    
+    if (parsedBlocks.length === 0) { alert('Сначала загрузите расшифровку'); return; }
     const apiKey = document.getElementById('apiKey').value.trim();
-    if (!apiKey || !apiKey.startsWith('sk-')) {
-        alert('Введите корректный API ключ DeepSeek');
-        return;
-    }
+    if (!apiKey || !apiKey.startsWith('sk-')) { alert('Введите корректный API ключ DeepSeek'); return; }
     
     const btn = document.getElementById('analyzeBtn');
     btn.disabled = true;
     document.getElementById('result').style.display = 'block';
-    document.getElementById('result').innerHTML = '<div class="loading">🔍 Анализируем блоки...</div>';
-    
-    // Прогресс-бар
-    const progressHtml = `<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div><div id="progressText" style="text-align: center;"></div>`;
-    document.getElementById('result').innerHTML = progressHtml;
+    document.getElementById('result').innerHTML = '<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div><div id="progressText" style="text-align: center;"></div>';
     
     try {
         const results = [];
         const total = parsedBlocks.length;
-        
         for (let i = 0; i < total; i++) {
             const block = parsedBlocks[i];
             const percent = Math.round((i / total) * 100);
             document.getElementById('progressFill').style.width = `${percent}%`;
             document.getElementById('progressText').innerHTML = `Блок ${i+1}/${total}: ${block.guestName} (${percent}%)`;
-            
             try {
                 const type = await classifyWithDeepSeek(block.fullText, apiKey);
                 results.push({ ...block, type });
             } catch (err) {
-                console.error(err);
                 results.push({ ...block, type: 'ШУМ' });
             }
-            
             await new Promise(r => setTimeout(r, 300));
         }
         
-        // Статистика по гостям
         const guestStats = {};
         results.forEach(r => {
             if (!guestStats[r.guestName]) guestStats[r.guestName] = { fact: 0, opinion: 0, noise: 0, total: 0 };
@@ -264,70 +210,51 @@ document.getElementById('analyzeBtn').onclick = async () => {
             guestStats[r.guestName].total++;
         });
         
-        // Формируем отчёт
-        let html = `<div class="result">
-            <h2>📊 Результаты анализа</h2>
-            <div class="stats">
-                <strong>${results.length}</strong> смысловых блоков<br>
-            </div>
-            <h3>👥 Коэффициенты доверия по экспертам</h3>
-            <div>`;
-        
+        let html = `<div class="result"><h2>📊 Результаты анализа</h2><div class="stats"><strong>${results.length}</strong> смысловых блоков</div><h3>👥 Коэффициенты доверия по экспертам</h3><div>`;
         for (const [guest, stats] of Object.entries(guestStats)) {
             const factPercent = Math.round(stats.fact / stats.total * 100);
             const opinionPercent = Math.round(stats.opinion / stats.total * 100);
             const trust = (stats.fact / stats.total).toFixed(2);
-            html += `
-                <div class="guest-card" style="border-left-color: ${factPercent > 50 ? '#4caf50' : '#ff9800'}">
-                    <strong>${guest}</strong><br>
-                    📊 Факты: ${stats.fact} (${factPercent}%)<br>
-                    💬 Оценки: ${stats.opinion} (${opinionPercent}%)<br>
-                    🔇 Шум: ${stats.noise}<br>
-                    🎯 Коэффициент доверия: <strong>${trust}</strong>
-                </div>
-            `;
+            html += `<div class="guest-card" style="border-left-color: ${factPercent > 50 ? '#4caf50' : '#ff9800'}"><strong>${guest}</strong><br>📊 Факты: ${stats.fact} (${factPercent}%)<br>💬 Оценки: ${stats.opinion} (${opinionPercent}%)<br>🔇 Шум: ${stats.noise}<br>🎯 Коэффициент доверия: <strong>${trust}</strong></div>`;
         }
-        
         html += `</div><h3>📋 Детальная классификация блоков</h3>`;
-        
         results.forEach(block => {
             const typeClass = block.type === 'ФАКТ' ? 'fact' : (block.type === 'ОЦЕНКА' ? 'opinion' : 'noise');
             const typeBadge = block.type === 'ФАКТ' ? 'badge-fact' : (block.type === 'ОЦЕНКА' ? 'badge-opinion' : 'badge-noise');
-            html += `
-                <div class="block ${typeClass}">
-                    <h3>
-                        ${block.guestName} · ${block.start} — ${block.end}
-                        <span class="badge ${typeBadge}">${block.type}</span>
-                    </h3>
-                    <div style="font-size: 12px; color: #666; max-height: 150px; overflow-y: auto;">
-                        ${escapeHtml(block.fullText.substring(0, 400))}${block.fullText.length > 400 ? '...' : ''}
-                    </div>
-                </div>
-            `;
+            html += `<div class="block ${typeClass}"><h3>${block.guestName} · ${block.start} — ${block.end}<span class="badge ${typeBadge}">${block.type}</span></h3><div style="font-size: 12px; color: #666; max-height: 150px; overflow-y: auto;">${escapeHtml(block.fullText.substring(0, 400))}${block.fullText.length > 400 ? '...' : ''}</div></div>`;
         });
         
-        html += `<div class="info">
-            💡 <strong>Как это работает:</strong><br>
-            • Расшифровка разбивается на блоки по гостям (автоопределение по фразе "с нами на связи")<br>
-            • Каждый блок отправляется в DeepSeek API с вашим ключом<br>
-            • Результат: ФАКТ (проверяемое утверждение), ОЦЕНКА (мнение), ШУМ (связки)<br>
-            • Коэффициент доверия = доля фактов в речи эксперта
-        </div></div>`;
+        // Кнопка экспорта для базы экспертов
+        const exportData = {};
+        for (const [guest, stats] of Object.entries(guestStats)) {
+            if (guest !== 'Ведущие') {
+                exportData[guest] = { facts: stats.fact, opinions: stats.opinion, noise: stats.noise, total_blocks: stats.total };
+            }
+        }
+        const jsonStr = JSON.stringify(exportData, null, 2);
+        html += `<button class="export-btn" id="exportForDB">📤 Экспорт для базы экспертов (скопировать JSON)</button>`;
+        html += `<div class="info">💡 <strong>Как это работает:</strong><br>• Расшифровка разбивается на блоки по гостям (автоопределение по фразе "с нами на связи")<br>• Каждый блок отправляется в DeepSeek API с вашим ключом<br>• Результат: ФАКТ (проверяемое утверждение), ОЦЕНКА (мнение), ШУМ (связки)<br>• Коэффициент доверия = доля фактов в речи эксперта</div>`;
         
         document.getElementById('result').innerHTML = html;
-        
+        document.getElementById('exportForDB').onclick = () => {
+            navigator.clipboard.writeText(jsonStr).then(() => {
+                alert('✅ JSON скопирован в буфер обмена!\n\nОткройте "Базу экспертов" и нажмите "Импортировать", затем вставьте (Ctrl+V)');
+            }).catch(() => {
+                const textarea = document.createElement('textarea');
+                textarea.value = jsonStr;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('✅ JSON скопирован в буфер обмена!');
+            });
+        };
     } catch (error) {
         document.getElementById('result').innerHTML = `<div class="error" style="color: red; padding: 20px;">❌ Ошибка: ${error.message}</div>`;
-    } finally {
-        btn.disabled = false;
-    }
+    } finally { btn.disabled = false; }
 };
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 </script>
 </body>
 </html>
