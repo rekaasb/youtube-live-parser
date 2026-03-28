@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>База экспертов — рейтинг доверия</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #ff0000;
+            border-bottom: 3px solid #ff0000;
+            padding-bottom: 10px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #ff0000;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #cc0000;
+        }
+        button.secondary {
+            background: #555;
+        }
+        .expert-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .expert-table th, .expert-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .expert-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+        }
+        .expert-table tr:hover {
+            background: #fafafa;
+        }
+        .fact-high {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .opinion-high {
+            color: #ff9800;
+            font-weight: bold;
+        }
+        .rank-1 {
+            background: #fff9c4;
+            font-weight: bold;
+        }
+        .stats {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 20px;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 База экспертов — рейтинг доверия</h1>
+    
+    <div class="controls">
+        <button id="importBtn">📥 Импортировать результаты из анализатора</button>
+        <button id="exportBtn" class="secondary">📤 Экспортировать базу (JSON)</button>
+        <button id="clearBtn" class="secondary">🗑️ Очистить базу</button>
+    </div>
+    
+    <div id="stats" class="stats" style="display: none;"></div>
+    
+    <div id="tableContainer"></div>
+    
+    <div class="info">
+        💡 <strong>Как это работает:</strong><br>
+        • После анализа эфира в <strong>classifier_blocks.html</strong> скопируйте результаты<br>
+        • Нажмите "Импортировать" и вставьте данные<br>
+        • База накапливает статистику по всем экспертам<br>
+        • Рейтинг (IQ) = % фактов × коэффициент стабильности<br>
+        • Чем выше % фактов, тем выше стилистический рейтинг доверия
+    </div>
+</div>
+
+<script>
+    // Ключ для хранения в localStorage
+    const STORAGE_KEY = 'expert_database';
+    
+    // Загрузка базы из localStorage
+    function loadDatabase() {
+        const data = localStorage.getItem(STORAGE_KEY);
+        if (data) {
+            return JSON.parse(data);
+        }
+        return {};
+    }
+    
+    // Сохранение базы
+    function saveDatabase(db) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    
+    // Обновление статистики по эксперту
+    function updateExpertStats(db, expertName, newResults) {
+        if (!db[expertName]) {
+            db[expertName] = {
+                total_blocks: 0,
+                total_facts: 0,
+                total_opinions: 0,
+                total_noise: 0,
+                sessions: []
+            };
+        }
+        
+        const expert = db[expertName];
+        expert.total_blocks += newResults.total_blocks;
+        expert.total_facts += newResults.facts;
+        expert.total_opinions += newResults.opinions;
+        expert.total_noise += newResults.noise;
+        expert.sessions.push({
+            date: new Date().toISOString(),
+            facts: newResults.facts,
+            opinions: newResults.opinions,
+            noise: newResults.noise,
+            total_blocks: newResults.total_blocks
+        });
+        
+        return db;
+    }
+    
+    // Расчёт IQ эксперта
+    function calculateIQ(expert) {
+        const total = expert.total_facts + expert.total_opinions;
+        if (total === 0) return 0;
+        const factPercent = expert.total_facts / total;
+        
+        // Стабильность (чем меньше отклонение, тем выше)
+        let stability = 1;
+        if (expert.sessions.length > 1) {
+            const factsPerSession = expert.sessions.map(s => {
+                const total = s.facts + s.opinions;
+                return total > 0 ? s.facts / total : 0;
+            });
+            const mean = factsPerSession.reduce((a,b) => a+b, 0) / factsPerSession.length;
+            const variance = factsPerSession.reduce((a,b) => a + Math.pow(b - mean, 2), 0) / factsPerSession.length;
+            const stdDev = Math.sqrt(variance);
+            stability = Math.max(0, 1 - stdDev);
+        }
+        
+        // IQ = фактологичность × стабильность
+        return Math.round(factPercent * stability * 100);
+    }
+    
+    // Отображение таблицы
+    function renderTable() {
+        const db = loadDatabase();
+        const container = document.getElementById('tableContainer');
+        const statsDiv = document.getElementById('stats');
+        
+        if (Object.keys(db).length === 0) {
+            container.innerHTML = '<div class="empty">📭 База пуста. Импортируйте результаты из анализатора.</div>';
+            statsDiv.style.display = 'none';
+            return;
+        }
+        
+        statsDiv.style.display = 'block';
+        
+        // Преобразуем в массив с IQ
+        const expertsList = Object.entries(db).map(([name, data]) => {
+            const total = data.total_facts + data.total_opinions;
+            const factPercent = total > 0 ? Math.round(data.total_facts / total * 100) : 0;
+            const opinionPercent = total > 0 ? Math.round(data.total_opinions / total * 100) : 0;
+            const iq = calculateIQ(data);
+            return {
+                name,
+                factPercent,
+                opinionPercent,
+                totalBlocks: data.total_blocks,
+                totalFacts: data.total_facts,
+                totalOpinions: data.total_opinions,
+                sessions: data.sessions.length,
+                iq
+            };
+        });
+        
+        // Сортировка по IQ
+        expertsList.sort((a, b) => b.iq - a.iq);
+        
+        // Общая статистика
+        const totalExperts = expertsList.length;
+        const avgFactPercent = Math.round(expertsList.reduce((a,b) => a + b.factPercent, 0) / totalExperts);
+        const maxIQ = expertsList[0];
+        
+        statsDiv.innerHTML = `
+            <strong>📊 Общая статистика</strong><br>
+            👥 Экспертов в базе: ${totalExperts}<br>
+            📈 Средний % фактов: ${avgFactPercent}%<br>
+            🏆 Лидер по IQ: ${maxIQ.name} (${maxIQ.iq} баллов, ${maxIQ.factPercent}% фактов)
+        `;
+        
+        // Таблица
+        let html = `<table class="expert-table">
+            <thead>
+                <tr><th>Ранг</th><th>Эксперт</th><th>ФАКТЫ</th><th>ОЦЕНКИ</th><th>Сессий</th><th>IQ (доверие)</th></tr>
+            </thead>
+            <tbody>`;
+        
+        expertsList.forEach((exp, idx) => {
+            const rankClass = idx === 0 ? 'rank-1' : '';
+            const factClass = exp.factPercent >= 60 ? 'fact-high' : '';
+            const opinionClass = exp.opinionPercent >= 60 ? 'opinion-high' : '';
+            html += `<tr class="${rankClass}">
+                <td>${idx + 1}</td>
+                <td><strong>${escapeHtml(exp.name)}</strong></td>
+                <td class="${factClass}">${exp.factPercent}% (${exp.totalFacts})</td>
+                <td class="${opinionClass}">${exp.opinionPercent}% (${exp.totalOpinions})</td>
+                <td>${exp.sessions}</td>
+                <td><strong>${exp.iq}</strong></td>
+            </tr>`;
+        });
+        
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    }
+    
+    // Импорт из JSON (результаты анализатора)
+    function importFromJSON() {
+        const jsonText = prompt('Вставьте JSON с результатами анализатора (скопируйте из classifier_blocks.html):');
+        if (!jsonText) return;
+        
+        try {
+            const data = JSON.parse(jsonText);
+            let db = loadDatabase();
+            
+            // Ожидаем формат: { "expertName": { facts, opinions, noise, total_blocks } }
+            for (const [expertName, results] of Object.entries(data)) {
+                db = updateExpertStats(db, expertName, results);
+            }
+            
+            saveDatabase(db);
+            renderTable();
+            alert('✅ Данные импортированы');
+        } catch (e) {
+            alert('Ошибка парсинга JSON. Убедитесь, что формат правильный.');
+            console.error(e);
+        }
+    }
+    
+    // Экспорт базы
+    function exportDatabase() {
+        const db = loadDatabase();
+        const dataStr = JSON.stringify(db, null, 2);
+        const blob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `expert_db_${new Date().toISOString().slice(0,19)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    // Очистка базы
+    function clearDatabase() {
+        if (confirm('Удалить всю базу экспертов? Это действие нельзя отменить.')) {
+            localStorage.removeItem(STORAGE_KEY);
+            renderTable();
+            alert('База очищена');
+        }
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Инициализация
+    document.getElementById('importBtn').onclick = importFromJSON;
+    document.getElementById('exportBtn').onclick = exportDatabase;
+    document.getElementById('clearBtn').onclick = clearDatabase;
+    
+    renderTable();
+</script>
+</body>
+</html>
