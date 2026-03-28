@@ -9,12 +9,18 @@
         .sub { color: #666; margin-bottom: 20px; }
         .upload-area { background: white; border: 2px dashed #ccc; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; margin-bottom: 20px; transition: all 0.3s; }
         .upload-area:hover { border-color: #ff0000; background: #fff5f5; }
-        .controls { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .controls, .experts-panel { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .experts-panel h3 { margin: 0 0 10px 0; font-size: 16px; }
+        .expert-tag { display: inline-block; background: #f0f0f0; padding: 4px 10px; margin: 4px; border-radius: 20px; font-size: 12px; }
+        .expert-tag button { background: none; border: none; color: #ff0000; margin-left: 8px; cursor: pointer; padding: 0; font-size: 12px; }
+        .add-expert { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+        .add-expert input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
+        .add-expert button { background: #4caf50; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; }
         .control-group { display: flex; flex-direction: column; gap: 5px; }
         .control-group label { font-weight: bold; font-size: 12px; color: #666; }
         input, button { padding: 10px 15px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
-        button { background: #ff0000; color: white; border: none; cursor: pointer; transition: background 0.3s; }
-        button:hover { background: #cc0000; }
+        button.primary { background: #ff0000; color: white; border: none; cursor: pointer; }
+        button.primary:hover { background: #cc0000; }
         .result { background: white; border-radius: 12px; padding: 20px; margin-top: 20px; }
         .block { border-left: 4px solid #ff0000; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #fafafa; }
         .block h3 { margin: 0 0 10px 0; font-size: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -27,7 +33,7 @@
 </head>
 <body>
     <h1>🎙️ Универсальный парсер эфира</h1>
-    <div class="sub">Автоматическое выделение любых гостей по фразе "с нами на связи"</div>
+    <div class="sub">Определение гостей по фразе "с нами на связи", обращению по имени, паузам между репликами</div>
 
     <div class="upload-area" id="uploadArea">
         <h3>📄 Загрузите расшифровку (.txt)</h3>
@@ -35,6 +41,19 @@
         <div id="fileStatus"></div>
     </div>
     <input type="file" id="fileInput" accept=".txt" style="display: none;">
+
+    <div class="experts-panel" id="expertsPanel" style="display: none;">
+        <h3>📋 Словарь экспертов</h3>
+        <div id="expertList"></div>
+        <div class="add-expert">
+            <input type="text" id="newExpertName" placeholder="Имя эксперта (например, Юрий Фёдоров)">
+            <input type="text" id="newExpertKeywords" placeholder="Ключевые слова (через запятую: юрий, фёдоров)">
+            <button id="addExpertBtn">➕ Добавить</button>
+        </div>
+        <div class="info" style="margin-top: 10px;">
+            💡 Эксперты определяются по обращению ведущего: "Юрий Евгеньевич" → Юрий Фёдоров
+        </div>
+    </div>
 
     <div class="controls" id="controls" style="display: none;">
         <div class="control-group">
@@ -46,7 +65,7 @@
             <input type="text" id="endTime" placeholder="3:08:00" value="3:08:00">
         </div>
         <div class="control-group">
-            <button id="parseBtn">🔍 Разобрать на блоки</button>
+            <button id="parseBtn" class="primary">🔍 Разобрать на блоки</button>
         </div>
     </div>
 
@@ -54,6 +73,77 @@
 
     <script>
         let fullSubtitles = [];
+        
+        // Загрузка и сохранение словаря экспертов в localStorage
+        let experts = {};
+        
+        function loadExperts() {
+            const saved = localStorage.getItem('parser_experts');
+            if (saved) {
+                experts = JSON.parse(saved);
+            } else {
+                // Начальный словарь
+                experts = {
+                    'Юрий Фёдоров': ['юрий', 'фёдоров', 'юрий евгеньевич'],
+                    'Пётр Олещук': ['пётр', 'петр', 'олещук'],
+                    'Александр Черкасов': ['александр', 'черкасов'],
+                    'Павел Таланкин': ['павел', 'таланкин'],
+                    'Дмитрий Орешкин': ['дмитрий', 'орешкин'],
+                    'Михаил Крутихин': ['михаил', 'крутихин'],
+                    'Ольга Романова': ['ольга', 'романова']
+                };
+            }
+            saveExperts();
+            renderExpertList();
+        }
+        
+        function saveExperts() {
+            localStorage.setItem('parser_experts', JSON.stringify(experts));
+        }
+        
+        function renderExpertList() {
+            const container = document.getElementById('expertList');
+            let html = '';
+            for (const [name, keywords] of Object.entries(experts)) {
+                html += `<div class="expert-tag">
+                    ${name} (${keywords.join(', ')})
+                    <button onclick="removeExpert('${name}')">✖</button>
+                </div>`;
+            }
+            container.innerHTML = html;
+        }
+        
+        function removeExpert(name) {
+            delete experts[name];
+            saveExperts();
+            renderExpertList();
+        }
+        
+        function addExpert() {
+            const name = document.getElementById('newExpertName').value.trim();
+            const keywords = document.getElementById('newExpertKeywords').value.trim();
+            if (!name || !keywords) {
+                alert('Введите имя и ключевые слова');
+                return;
+            }
+            experts[name] = keywords.split(',').map(k => k.trim().toLowerCase());
+            saveExperts();
+            renderExpertList();
+            document.getElementById('newExpertName').value = '';
+            document.getElementById('newExpertKeywords').value = '';
+        }
+        
+        function detectGuestByAddress(text) {
+            const lower = text.toLowerCase();
+            for (const [name, keywords] of Object.entries(experts)) {
+                for (const kw of keywords) {
+                    if (lower.includes(kw)) {
+                        return name;
+                    }
+                }
+            }
+            return null;
+        }
         
         function parseTimeToSeconds(timeStr) {
             timeStr = timeStr.trim();
@@ -119,24 +209,12 @@
             return subtitles;
         }
         
-        // УНИВЕРСАЛЬНОЕ ОПРЕДЕЛЕНИЕ ГОСТЯ
-        // Ищет фразу "с нами на связи" и извлекает имя
-        function detectGuest(text) {
-            const lower = text.toLowerCase();
-            // Паттерн: "с нами на связи" + Имя Фамилия (с заглавных букв)
+        function detectByStandardPhrase(text) {
             const match = text.match(/с нами на связи\s+([А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+)/);
-            if (match) {
-                return match[1];
-            }
-            // Альтернативный паттерн: "С нами на связи" + Имя (без фамилии)
-            const matchShort = text.match(/с нами на связи\s+([А-ЯЁ][а-яё]+)/i);
-            if (matchShort && matchShort[1].length > 2) {
-                return matchShort[1];
-            }
+            if (match) return match[1];
             return null;
         }
         
-        // Генерация случайного цвета для нового гостя
         function getColorForGuest(guestName) {
             const colors = ['#ff9800', '#4caf50', '#9c27b0', '#e91e63', '#00bcd4', '#795548', '#3f51b5', '#009688'];
             let hash = 0;
@@ -147,47 +225,49 @@
             return colors[Math.abs(hash) % colors.length];
         }
         
-        // Объединение фраз в блоки по гостям (универсально)
         function mergeIntoBlocks(subtitles, startSec, endSec) {
             const filtered = subtitles.filter(s => s.time >= startSec && s.time <= endSec);
             if (filtered.length === 0) return [];
             
             const blocks = [];
             let currentBlock = { 
-                guest: null, 
                 guestName: 'Ведущие',
                 start: null, 
                 end: null, 
                 texts: [],
                 color: '#2196f3'
             };
+            let lastGuestTime = startSec;
             
             for (let i = 0; i < filtered.length; i++) {
                 const item = filtered[i];
                 const text = item.text;
                 if (!text) continue;
                 
-                // Пытаемся определить гостя по фразе "с нами на связи"
-                const detectedGuest = detectGuest(text);
+                let guestName = null;
                 
-                let guestName = currentBlock.guestName;
-                let isNewGuest = false;
+                // 1. По фразе "с нами на связи"
+                guestName = detectByStandardPhrase(text);
                 
-                if (detectedGuest) {
-                    guestName = detectedGuest;
-                    isNewGuest = true;
+                // 2. По обращению к эксперту
+                if (!guestName) guestName = detectGuestByAddress(text);
+                
+                // 3. По паузе > 30 секунд (смена спикера)
+                const isPause = (item.time - lastGuestTime) > 30;
+                if (!guestName && isPause && currentBlock.guestName !== 'Ведущие') {
+                    guestName = 'Ведущие';
                 }
                 
-                // Если блок пустой или сменился гость — начинаем новый блок
-                if (!currentBlock.guest || (currentBlock.guestName !== guestName && !isNewGuest) || (isNewGuest && currentBlock.guestName !== guestName)) {
+                lastGuestTime = item.time;
+                
+                if (guestName && guestName !== currentBlock.guestName) {
                     if (currentBlock.texts.length > 0) {
                         currentBlock.end = filtered[i-1].timeStr;
                         currentBlock.fullText = currentBlock.texts.join(' ');
                         blocks.push(currentBlock);
                     }
-                    // Начинаем новый блок
+                    
                     currentBlock = {
-                        guest: guestName,
                         guestName: guestName,
                         start: item.timeStr,
                         end: null,
@@ -195,7 +275,6 @@
                         color: getColorForGuest(guestName)
                     };
                 } else {
-                    // Продолжаем текущий блок
                     currentBlock.texts.push(text);
                     currentBlock.end = item.timeStr;
                 }
@@ -219,6 +298,7 @@
                 fullSubtitles = parseTranscript(ev.target.result);
                 document.getElementById('fileStatus').innerHTML = `✅ ${file.name} — ${fullSubtitles.length} фраз`;
                 document.getElementById('controls').style.display = 'flex';
+                document.getElementById('expertsPanel').style.display = 'block';
                 if (fullSubtitles.length > 0) {
                     document.getElementById('startTime').value = fullSubtitles[0].timeStr;
                     document.getElementById('endTime').value = fullSubtitles[fullSubtitles.length-1].timeStr;
@@ -255,7 +335,6 @@
             
             enrichedBlocks.forEach((block, idx) => {
                 const preview = block.fullText.substring(0, 500) + (block.fullText.length > 500 ? '...' : '');
-                const isHost = block.guestName === 'Ведущие';
                 const borderColor = block.color;
                 html += `
                     <div class="block" style="border-left-color: ${borderColor}">
@@ -272,16 +351,21 @@
             if (enrichedBlocks.length === 0) html += `<div class="error">❌ В выбранном интервале нет фраз</div>`;
             html += `<div class="info">
                 💡 <strong>Как это работает:</strong><br>
-                • Парсер ищет фразу <strong>"с нами на связи"</strong> и извлекает имя гостя<br>
-                • Каждый новый гость получает свой цвет<br>
-                • Все последующие фразы относятся к этому гостю, пока не появится новый<br>
-                • Ведущие — это все фразы, где не было фразы "с нами на связи"
+                • <strong>Способ 1:</strong> фраза "с нами на связи" + имя<br>
+                • <strong>Способ 2:</strong> обращение ведущего по имени (словарь экспертов)<br>
+                • <strong>Способ 3:</strong> пауза между репликами > 30 секунд<br>
+                • Вы можете <strong>добавлять новых экспертов</strong> в панели слева — они сохранятся в браузере
             </div></div>`;
             
             document.getElementById('result').innerHTML = html;
         };
         
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        
+        // Инициализация
+        loadExperts();
+        window.removeExpert = removeExpert;
+        document.getElementById('addExpertBtn').onclick = addExpert;
         
         const uploadArea = document.getElementById('uploadArea');
         uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.style.borderColor = '#ff0000'; };
@@ -296,6 +380,7 @@
                     fullSubtitles = parseTranscript(ev.target.result);
                     document.getElementById('fileStatus').innerHTML = `✅ ${file.name} — ${fullSubtitles.length} фраз`;
                     document.getElementById('controls').style.display = 'flex';
+                    document.getElementById('expertsPanel').style.display = 'block';
                     if (fullSubtitles.length > 0) {
                         document.getElementById('startTime').value = fullSubtitles[0].timeStr;
                         document.getElementById('endTime').value = fullSubtitles[fullSubtitles.length-1].timeStr;
