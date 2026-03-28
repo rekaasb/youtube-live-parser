@@ -2,123 +2,32 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Умный парсер эфира — финальная версия</title>
+    <title>Универсальный парсер эфира</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
         h1 { color: #ff0000; margin-bottom: 5px; }
         .sub { color: #666; margin-bottom: 20px; }
-        .upload-area {
-            background: white;
-            border: 2px dashed #ccc;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            margin-bottom: 20px;
-            transition: all 0.3s;
-        }
+        .upload-area { background: white; border: 2px dashed #ccc; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; margin-bottom: 20px; transition: all 0.3s; }
         .upload-area:hover { border-color: #ff0000; background: #fff5f5; }
-        .controls {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-        }
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        .control-group label {
-            font-weight: bold;
-            font-size: 12px;
-            color: #666;
-        }
-        input, button {
-            padding: 10px 15px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            font-size: 14px;
-        }
-        button {
-            background: #ff0000;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
+        .controls { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-weight: bold; font-size: 12px; color: #666; }
+        input, button { padding: 10px 15px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
+        button { background: #ff0000; color: white; border: none; cursor: pointer; transition: background 0.3s; }
         button:hover { background: #cc0000; }
-        .result {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-        .block {
-            border-left: 4px solid #ff0000;
-            margin-bottom: 20px;
-            padding: 15px;
-            border-radius: 8px;
-            background: #fafafa;
-        }
-        .block-host { border-left-color: #2196f3; background: #f0f8ff; }
-        .block-expert { border-left-color: #ff9800; background: #fff8f0; }
-        .block h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-        .badge-host { background: #2196f3; color: white; }
-        .badge-bykov { background: #ff9800; color: white; }
-        .badge-favorov { background: #4caf50; color: white; }
-        .badge-borodkin { background: #9c27b0; color: white; }
-        .badge-kashin { background: #e91e63; color: white; }
-        .block .text {
-            font-size: 14px;
-            line-height: 1.5;
-            color: #333;
-            background: white;
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid #eee;
-            white-space: pre-wrap;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .stats {
-            background: #f0f0f0;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 13px;
-        }
+        .result { background: white; border-radius: 12px; padding: 20px; margin-top: 20px; }
+        .block { border-left: 4px solid #ff0000; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: #fafafa; }
+        .block h3 { margin: 0 0 10px 0; font-size: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: bold; background: #ff9800; color: white; }
+        .block .text { font-size: 14px; line-height: 1.5; color: #333; background: white; padding: 12px; border-radius: 6px; border: 1px solid #eee; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .stats { background: #f0f0f0; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; }
         .stats span { font-weight: bold; color: #ff0000; }
         .info { background: #e3f2fd; padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>🎙️ Умный парсер эфира — финальная версия</h1>
-    <div class="sub">Автоматическое выделение гостей по фразам "с нами на связи" + объединение в смысловые блоки</div>
+    <h1>🎙️ Универсальный парсер эфира</h1>
+    <div class="sub">Автоматическое выделение любых гостей по фразе "с нами на связи"</div>
 
     <div class="upload-area" id="uploadArea">
         <h3>📄 Загрузите расшифровку (.txt)</h3>
@@ -169,7 +78,6 @@
             return line.match(/^\d+\s*минут/) || line.match(/^\d+:\d+/) || line.match(/^\d+:\d+:\d+/);
         }
         
-        // Очистка текста от временных меток
         function cleanText(text) {
             const lines = text.split('\n');
             const cleaned = lines.filter(line => {
@@ -179,7 +87,6 @@
             return cleaned.join(' ').replace(/\s+/g, ' ').trim();
         }
         
-        // Парсинг всей расшифровки
         function parseTranscript(text) {
             const lines = text.split('\n');
             const subtitles = [];
@@ -212,65 +119,85 @@
             return subtitles;
         }
         
-        // Определение типа блока по времени и тексту
-        function getBlockType(text, startTime, isGuestStart) {
-            const lowerText = text.toLowerCase();
-            
-            // Если это начало гостя — определяем по фразам
-            if (isGuestStart) {
-                if (lowerText.includes('быков') && lowerText.includes('с нами на связи')) return { type: 'bykov', label: 'Дмитрий Быков', badge: 'badge-bykov' };
-                if (lowerText.includes('фаворов') || (lowerText.includes('эпидемиолог') && lowerText.includes('с нами на связи'))) return { type: 'favorov', label: 'Михаил Фаворов', badge: 'badge-favorov' };
-                if (lowerText.includes('бородкин') || (lowerText.includes('иран') && lowerText.includes('с нами на связи'))) return { type: 'borodkin', label: 'Михаил Бородкин', badge: 'badge-borodkin' };
-                if (lowerText.includes('кашин')) return { type: 'kashin', label: 'Олег Кашин', badge: 'badge-kashin' };
+        // УНИВЕРСАЛЬНОЕ ОПРЕДЕЛЕНИЕ ГОСТЯ
+        // Ищет фразу "с нами на связи" и извлекает имя
+        function detectGuest(text) {
+            const lower = text.toLowerCase();
+            // Паттерн: "с нами на связи" + Имя Фамилия (с заглавных букв)
+            const match = text.match(/с нами на связи\s+([А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+)/);
+            if (match) {
+                return match[1];
             }
-            
-            // По времени (запасной вариант)
-            if (startTime >= 2*3600 + 27*60) return { type: 'kashin', label: 'Олег Кашин', badge: 'badge-kashin' };
-            if (startTime >= 2*3600 + 4*60 && startTime < 2*3600 + 27*60) return { type: 'borodkin', label: 'Михаил Бородкин', badge: 'badge-borodkin' };
-            if (startTime >= 1*3600 + 13*60 && startTime < 2*3600 + 4*60) return { type: 'favorov', label: 'Михаил Фаворов', badge: 'badge-favorov' };
-            if (startTime >= 14*60 && startTime < 1*3600) return { type: 'bykov', label: 'Дмитрий Быков', badge: 'badge-bykov' };
-            
-            // Ведущие
-            if (lowerText.includes('маша') || lowerText.includes('айдар') || 
-                (text.includes('?') && text.length < 500) ||
-                text.toLowerCase().includes('доброе утро')) {
-                return { type: 'host', label: 'Ведущие (Маша, Айдар)', badge: 'badge-host' };
+            // Альтернативный паттерн: "С нами на связи" + Имя (без фамилии)
+            const matchShort = text.match(/с нами на связи\s+([А-ЯЁ][а-яё]+)/i);
+            if (matchShort && matchShort[1].length > 2) {
+                return matchShort[1];
             }
-            
-            return { type: 'host', label: 'Ведущие', badge: 'badge-host' };
+            return null;
         }
         
-        // Объединение в смысловые блоки
+        // Генерация случайного цвета для нового гостя
+        function getColorForGuest(guestName) {
+            const colors = ['#ff9800', '#4caf50', '#9c27b0', '#e91e63', '#00bcd4', '#795548', '#3f51b5', '#009688'];
+            let hash = 0;
+            for (let i = 0; i < guestName.length; i++) {
+                hash = ((hash << 5) - hash) + guestName.charCodeAt(i);
+                hash |= 0;
+            }
+            return colors[Math.abs(hash) % colors.length];
+        }
+        
+        // Объединение фраз в блоки по гостям (универсально)
         function mergeIntoBlocks(subtitles, startSec, endSec) {
             const filtered = subtitles.filter(s => s.time >= startSec && s.time <= endSec);
             if (filtered.length === 0) return [];
             
             const blocks = [];
-            let currentBlock = { start: filtered[0].timeStr, end: null, texts: [], lastTime: filtered[0].time, currentType: null };
+            let currentBlock = { 
+                guest: null, 
+                guestName: 'Ведущие',
+                start: null, 
+                end: null, 
+                texts: [],
+                color: '#2196f3'
+            };
             
             for (let i = 0; i < filtered.length; i++) {
                 const item = filtered[i];
                 const text = item.text;
                 if (!text) continue;
                 
-                // Определяем, является ли это начало гостя
-                const isGuestStart = text.includes('с нами на связи') || 
-                                     text.includes('подключается') ||
-                                     (text.includes('Михаил Фаворов') && i > 0 && filtered[i-1].time < item.time - 10);
+                // Пытаемся определить гостя по фразе "с нами на связи"
+                const detectedGuest = detectGuest(text);
                 
-                const blockType = getBlockType(text, item.time, isGuestStart);
+                let guestName = currentBlock.guestName;
+                let isNewGuest = false;
                 
-                // Если тип блока изменился и текущий блок не пустой — закрываем
-                if (currentBlock.currentType && currentBlock.currentType !== blockType.type && currentBlock.texts.length > 0) {
-                    currentBlock.end = filtered[i-1].timeStr;
-                    currentBlock.fullText = currentBlock.texts.join(' ');
-                    blocks.push(currentBlock);
-                    currentBlock = { start: item.timeStr, end: null, texts: [text], lastTime: item.time, currentType: blockType.type };
+                if (detectedGuest) {
+                    guestName = detectedGuest;
+                    isNewGuest = true;
+                }
+                
+                // Если блок пустой или сменился гость — начинаем новый блок
+                if (!currentBlock.guest || (currentBlock.guestName !== guestName && !isNewGuest) || (isNewGuest && currentBlock.guestName !== guestName)) {
+                    if (currentBlock.texts.length > 0) {
+                        currentBlock.end = filtered[i-1].timeStr;
+                        currentBlock.fullText = currentBlock.texts.join(' ');
+                        blocks.push(currentBlock);
+                    }
+                    // Начинаем новый блок
+                    currentBlock = {
+                        guest: guestName,
+                        guestName: guestName,
+                        start: item.timeStr,
+                        end: null,
+                        texts: [text],
+                        color: getColorForGuest(guestName)
+                    };
                 } else {
+                    // Продолжаем текущий блок
                     currentBlock.texts.push(text);
-                    currentBlock.lastTime = item.time;
-                    currentBlock.currentType = blockType.type;
-                    if (!currentBlock.start) currentBlock.start = item.timeStr;
+                    currentBlock.end = item.timeStr;
                 }
             }
             
@@ -283,14 +210,10 @@
             return blocks;
         }
         
-        // Загрузка файла
         document.getElementById('uploadArea').onclick = () => document.getElementById('fileInput').click();
         document.getElementById('fileInput').onchange = (e) => {
             const file = e.target.files[0];
-            if (!file || !file.name.endsWith('.txt')) {
-                alert('Загрузите файл .txt');
-                return;
-            }
+            if (!file || !file.name.endsWith('.txt')) { alert('Загрузите файл .txt'); return; }
             const reader = new FileReader();
             reader.onload = (ev) => {
                 fullSubtitles = parseTranscript(ev.target.result);
@@ -304,31 +227,23 @@
             reader.readAsText(file, 'UTF-8');
         };
         
-        // Парсинг
         document.getElementById('parseBtn').onclick = () => {
             if (fullSubtitles.length === 0) return;
-            
             const startStr = document.getElementById('startTime').value;
             const endStr = document.getElementById('endTime').value;
             const startSec = parseTimeToSeconds(startStr);
             const endSec = parseTimeToSeconds(endStr);
-            
-            if (startSec === null || endSec === null) {
-                alert('Введите корректное время');
-                return;
-            }
+            if (startSec === null || endSec === null) { alert('Введите корректное время'); return; }
             
             const blocks = mergeIntoBlocks(fullSubtitles, startSec, endSec);
-            let totalChars = 0;
-            let totalWords = 0;
+            let totalChars = 0, totalWords = 0;
             
             const enrichedBlocks = blocks.map(block => {
-                const blockType = getBlockType(block.fullText, parseTimeToSeconds(block.start), false);
                 const chars = block.fullText.length;
                 const words = block.fullText.split(/\s+/).length;
                 totalChars += chars;
                 totalWords += words;
-                return { ...block, ...blockType, chars, words };
+                return { ...block, chars, words };
             });
             
             let html = `<div class="result">
@@ -340,12 +255,13 @@
             
             enrichedBlocks.forEach((block, idx) => {
                 const preview = block.fullText.substring(0, 500) + (block.fullText.length > 500 ? '...' : '');
-                const blockClass = block.type === 'host' ? 'block-host' : 'block-expert';
+                const isHost = block.guestName === 'Ведущие';
+                const borderColor = block.color;
                 html += `
-                    <div class="block ${blockClass}">
+                    <div class="block" style="border-left-color: ${borderColor}">
                         <h3>
                             📌 Блок ${idx+1} · ${block.start} — ${block.end}
-                            <span class="badge ${block.badge}">${block.label}</span>
+                            <span class="badge" style="background: ${borderColor}">${block.guestName}</span>
                             <span style="font-size: 11px; color: #888;">📏 ${block.chars} символов</span>
                         </h3>
                         <div class="text">${escapeHtml(preview)}</div>
@@ -353,30 +269,20 @@
                 `;
             });
             
-            if (enrichedBlocks.length === 0) {
-                html += `<div class="error">❌ В выбранном интервале нет фраз</div>`;
-            }
-            
+            if (enrichedBlocks.length === 0) html += `<div class="error">❌ В выбранном интервале нет фраз</div>`;
             html += `<div class="info">
                 💡 <strong>Как это работает:</strong><br>
-                • <strong style="color:#2196f3;">Ведущие</strong> — приветствия, вопросы, связки<br>
-                • <strong style="color:#ff9800;">Дмитрий Быков</strong> — определяется по фразе "с нами на связи"<br>
-                • <strong style="color:#4caf50;">Михаил Фаворов</strong> — определяется по фразе "с нами на связи"<br>
-                • <strong style="color:#9c27b0;">Михаил Бородкин</strong> — определяется по фразе "с нами на связи"<br>
-                • <strong style="color:#e91e63;">Олег Кашин</strong> — определяется по фразе "с нами на связи"<br>
-                • Все блоки одного гостя автоматически объединяются
+                • Парсер ищет фразу <strong>"с нами на связи"</strong> и извлекает имя гостя<br>
+                • Каждый новый гость получает свой цвет<br>
+                • Все последующие фразы относятся к этому гостю, пока не появится новый<br>
+                • Ведущие — это все фразы, где не было фразы "с нами на связи"
             </div></div>`;
             
             document.getElementById('result').innerHTML = html;
         };
         
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         
-        // Drag & Drop
         const uploadArea = document.getElementById('uploadArea');
         uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.style.borderColor = '#ff0000'; };
         uploadArea.ondragleave = () => { uploadArea.style.borderColor = '#ccc'; };
